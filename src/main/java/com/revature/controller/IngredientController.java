@@ -2,8 +2,10 @@ package com.revature.controller;
 
 import io.javalin.Javalin;
 import io.javalin.http.Context;
-
+import com.revature.util.Page;
+import com.revature.model.Ingredient;
 import com.revature.service.IngredientService;
+import com.revature.util.PageOptions;
 
 
 /**
@@ -30,7 +32,7 @@ public class IngredientController {
      */
 
     public IngredientController(IngredientService ingredientService) {
-        
+        this.ingredientService = ingredientService;
     }
 
     /**
@@ -41,7 +43,14 @@ public class IngredientController {
      * @param ctx the Javalin context containing the request path parameter for the ingredient ID
      */
     public void getIngredient(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Ingredient ingredient = ingredientService.getIngredientById(id);
         
+        if (ingredient != null) {
+            ctx.status(200).json(ingredient);
+        } else {
+            ctx.status(404);
+        }
     }
 
     /**
@@ -52,8 +61,10 @@ public class IngredientController {
      * @param ctx the Javalin context containing the request path parameter for the ingredient id
      */
     public void deleteIngredient(Context ctx) {
-        
-    }
+    int id = Integer.parseInt(ctx.pathParam("id"));
+    ingredientService.deleteIngredient(id);
+    ctx.status(204);
+}
 
     /**
      * TODO: Updates an existing ingredient by its ID.
@@ -63,7 +74,16 @@ public class IngredientController {
      * @param ctx the Javalin context containing the request path parameter and updated ingredient data in the request body
      */
     public void updateIngredient(Context ctx) {
-       
+       int id = Integer.parseInt(ctx.pathParam("id"));
+        Ingredient ingredient = ctx.bodyAsClass(Ingredient.class);
+        ingredient.setId(id);
+        
+        if (ingredientService.getIngredientById(id) != null) {
+            ingredientService.updateIngredient(ingredient);
+            ctx.status(204);
+        } else {
+            ctx.status(404);
+        }
     }
 
     /**
@@ -74,7 +94,9 @@ public class IngredientController {
      * @param ctx the Javalin context containing the ingredient data in the request body
      */
     public void createIngredient(Context ctx) {
-
+        Ingredient ingredient = ctx.bodyAsClass(Ingredient.class);
+        Ingredient createdIngredient = ingredientService.createIngredient(ingredient);
+        ctx.status(201).json(createdIngredient);
     }
 
     /**
@@ -84,9 +106,24 @@ public class IngredientController {
      *
      * @param ctx the Javalin context containing query parameters for pagination, sorting, and filtering
      */
-    public void getIngredients(Context ctx) {
-       
+    // Inside com.revature.controller.IngredientController.java
+
+public void getIngredients(Context ctx) {
+    String term = ctx.queryParam("term");
+    
+    if (ctx.queryParam("page") != null || ctx.queryParam("pageSize") != null) {
+        int pageNumber = getParamAsClassOrElse(ctx, "page", Integer.class, 1);
+        int pageSize = getParamAsClassOrElse(ctx, "pageSize", Integer.class, 10);
+        String sortBy = ctx.queryParam("sortBy") != null ? ctx.queryParam("sortBy") : "id";
+        String sortDirection = ctx.queryParam("sortDirection") != null ? ctx.queryParam("sortDirection") : "ASC";
+        PageOptions pageOptions = new PageOptions(pageNumber, pageSize, sortBy, sortDirection);
+        
+        Page<Ingredient> page = ingredientService.getIngredients(term, pageOptions);
+        ctx.status(200).json(page);
+    } else {
+        ctx.status(200).json(ingredientService.getAllIngredients(term));
     }
+}
 
     /**
      * A helper method to retrieve a query parameter from the context as a specific class type, or return a default value if the query parameter is not present.

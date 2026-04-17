@@ -3,6 +3,7 @@ package com.revature.controller;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 
+import com.revature.model.Chef;
 import com.revature.service.AuthenticationService;
 import com.revature.service.ChefService;
 
@@ -32,7 +33,8 @@ public class AuthenticationController {
      * @param authService the service used to manage authentication-related operations
      */
     public AuthenticationController(ChefService chefService, AuthenticationService authService) {
-        
+        this.chefService = chefService;
+        this.authService = authService;
     }
 
     /**
@@ -45,7 +47,15 @@ public class AuthenticationController {
      * @param ctx the Javalin context containing the chef information in the request body
      */
     public void register(Context ctx) {
+        Chef chef = ctx.bodyAsClass(Chef.class);
         
+        // Check if username already exists
+        if (chefService.getChefByUsername(chef.getUsername()) != null) {
+            ctx.status(409).result("Username already exists");
+        } else {
+            Chef registeredChef = chefService.registerChef(chef);
+            ctx.status(201).json(registeredChef);
+        }
     }
 
     /**
@@ -56,8 +66,16 @@ public class AuthenticationController {
      * @param ctx the Javalin context containing the chef login credentials in the request body
      */
     public void login(Context ctx) {
-        
+    Chef credentials = ctx.bodyAsClass(Chef.class);
+    String token = authService.login(credentials.getUsername(), credentials.getPassword());
+
+    if (token != null) {
+        ctx.status(200).result(token); // Use .result(token) for raw string, NOT .json()
+        ctx.header("Authorization", token);
+    } else {
+        ctx.status(401).result("Invalid username or password");
     }
+}
 
     /**
      * TODO: Logs out the currently authenticated chef by invalidating their token. Responds with a 200 OK status and a result of "Logout successful".
@@ -65,7 +83,9 @@ public class AuthenticationController {
      * @param ctx the Javalin context, containing the Authorization token in the request header
      */
     public void logout(Context ctx) {
-        
+        String token = ctx.header("Authorization");
+        authService.logout(token);
+        ctx.status(200).result("Logout successful");
     }
 
     /**

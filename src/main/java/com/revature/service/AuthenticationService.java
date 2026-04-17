@@ -1,6 +1,8 @@
 package com.revature.service;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
+
 import com.revature.model.Chef;
 
 
@@ -40,9 +42,15 @@ public class AuthenticationService {
      * @param chef the Chef object containing login credentials
      * @return a session token if the login is successful; null otherwise
      */
-    public String login(Chef chef) {
-        return null; 
+    public String login(String username, String password) {
+    Chef existingChef = chefService.getChefByUsername(username);
+    if (existingChef != null && existingChef.getPassword().equals(password)) {
+        String token = UUID.randomUUID().toString();
+        loggedInUsers.put(token, existingChef);
+        return token;
     }
+    return null;
+}
 
     /**
      * TODO: Logs out a chef by removing their session token from the LoggedInUsers map.
@@ -51,7 +59,10 @@ public class AuthenticationService {
      */
 
     public void logout(String token) {
-        
+        if (token != null) {
+        String cleanToken = token.replace("Bearer ", "").trim();
+        loggedInUsers.remove(cleanToken);
+    }
     }
 
     /**
@@ -61,7 +72,7 @@ public class AuthenticationService {
 	 * @return the registered chef object
 	 */
     public Chef registerChef(Chef chef) {
-        return null;
+        return chefService.registerChef(chef);
     }
 
     /**
@@ -71,6 +82,14 @@ public class AuthenticationService {
      * @return the Chef object associated with the session token; null if not found
      */
     public Chef getChefFromSessionToken(String token) {
-        return null;
+        return loggedInUsers.get(token);
     }
+    public boolean authenticate(String token) {
+    if (token == null || token.isEmpty()) {
+        return false;
+    }
+    
+    String cleanToken = token.replace("Bearer ", "").trim();
+    return loggedInUsers.containsKey(cleanToken);
+}
 }

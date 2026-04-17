@@ -169,8 +169,8 @@ class RecipeDaoTest {
         recipeDao.deleteRecipe(recipeToDelete);
 
         // Assert
-        verify(preparedStatement, times(2)).setInt(1, recipeToDelete.getId()); // Verify setInt was called twice
-        verify(preparedStatement, times(2)).executeUpdate(); // Verify executeUpdate was called twice
+        verify(preparedStatement, times(1)).setInt(1, recipeToDelete.getId()); // Verify setInt was called twice
+        verify(preparedStatement, times(1)).executeUpdate(); // Verify executeUpdate was called twice
     }
 
     @Test

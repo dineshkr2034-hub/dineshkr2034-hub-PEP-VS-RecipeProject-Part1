@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 
 
 /**
@@ -31,7 +34,7 @@ public class ChefDAO {
      * @param connectionUtil the utility used to connect to the database
      */
     public ChefDAO(ConnectionUtil connectionUtil) {
-        
+        this.connectionUtil = connectionUtil;
     }
 
     /**
@@ -40,7 +43,16 @@ public class ChefDAO {
      * @return a list of all Chef objects
      */
     public List<Chef> getAllChefs() {
-        return null;
+       String sql = "SELECT * FROM CHEF ORDER BY id"; 
+    
+    try (Connection conn = connectionUtil.getConnection();
+         Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(sql)) {
+        return mapRows(rs);
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return new ArrayList<>();
     }
 
     /**
@@ -50,6 +62,14 @@ public class ChefDAO {
      * @return a paginated list of Chef objects
      */
     public Page<Chef> getAllChefs(PageOptions pageOptions) {
+        String sql = "SELECT * FROM chef";
+        try (Connection conn = connectionUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            return pageResults(rs, pageOptions);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
@@ -60,6 +80,18 @@ public class ChefDAO {
      * @return the Chef object, if found.
      */
     public Chef getChefById(int id) {
+        String sql = "SELECT * FROM chef WHERE id = ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, id);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapSingleRow(rs);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
@@ -70,6 +102,23 @@ public class ChefDAO {
      * @return the unique identifier of the created Chef.
      */
     public int createChef(Chef chef) {
+       String sql = "INSERT INTO chef (username, email, password, is_admin) VALUES (?, ?, ?, ?)";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, chef.getUsername());
+            pstmt.setString(2, chef.getEmail());
+            pstmt.setString(3, chef.getPassword());
+            pstmt.setBoolean(4, chef.isAdmin());
+            
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return 0;
     }
 
@@ -79,7 +128,18 @@ public class ChefDAO {
      * @param chef the Chef object containing updated information.
      */
     public void updateChef(Chef chef) {
-        
+        String sql = "UPDATE chef SET username = ?, email = ?, password = ?, is_admin = ? WHERE id = ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, chef.getUsername());
+            pstmt.setString(2, chef.getEmail());
+            pstmt.setString(3, chef.getPassword());
+            pstmt.setBoolean(4, chef.isAdmin());
+            pstmt.setInt(5, chef.getId());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -88,7 +148,14 @@ public class ChefDAO {
      * @param chef the Chef object to be deleted.
      */
     public void deleteChef(Chef chef) {
-        
+        String sql = "DELETE FROM chef WHERE id = ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, chef.getId());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -98,7 +165,17 @@ public class ChefDAO {
      * @return a list of Chef objects that match the search term.
      */
     public List<Chef> searchChefsByTerm(String term) {
-        return null;
+       String sql = "SELECT * FROM chef WHERE username LIKE ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, "%" + term + "%");
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return mapRows(rs);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return new ArrayList<>();
     }
 
     /**
@@ -109,6 +186,16 @@ public class ChefDAO {
      * @return a paginated list of Chef objects that match the search term
      */
     public Page<Chef> searchChefsByTerm(String term, PageOptions pageOptions) {
+        String sql = "SELECT * FROM chef WHERE username LIKE ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, "%" + term + "%");
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return pageResults(rs, pageOptions);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
@@ -178,5 +265,20 @@ public class ChefDAO {
         }
         return sliced;
     }
+    public Chef getChefByUsername(String username) {
+    String sql = "SELECT * FROM chef WHERE username = ?";
+    try (Connection conn = connectionUtil.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        pstmt.setString(1, username);
+        try (ResultSet rs = pstmt.executeQuery()) {
+            if (rs.next()) {
+                return mapSingleRow(rs);
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return null;
+}
 }
 

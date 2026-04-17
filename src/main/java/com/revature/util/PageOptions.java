@@ -67,4 +67,7 @@ public class PageOptions {
     public void setSortDirection(String sortDirection) {
         this.sortDirection = sortDirection;
     }
+    public int getOffset() {
+    return (this.pageNumber - 1) * this.pageSize;
+}
 }

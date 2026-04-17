@@ -4,8 +4,12 @@ import io.javalin.http.Handler;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 
+import java.util.List;
+import com.revature.model.Recipe;
 import com.revature.service.AuthenticationService;
 import com.revature.service.RecipeService;
+import com.revature.util.PageOptions;
+import com.revature.util.Page;
 
 /**
  * The RecipeController class provides RESTful endpoints for managing recipes.
@@ -30,7 +34,8 @@ public class RecipeController {
      * * @param authService the service used to manage authentication-related operations
      */
     public RecipeController(RecipeService recipeService, AuthenticationService authService) {
-        
+        this.recipeService = recipeService;
+        this.authService = authService;
     }
 
     /**
@@ -38,9 +43,34 @@ public class RecipeController {
      * 
      * Responds with a 200 OK status and the list of recipes, or 404 Not Found with a result of "No recipes found".
      */
-    public Handler fetchAllRecipes = ctx -> {
+   public Handler fetchAllRecipes = ctx -> {
+    
+    String term = ctx.queryParam("term");
+    if (term == null) {
+        term = ctx.queryParam("name");
+    }
+    
+    if (ctx.queryParam("page") != null || ctx.queryParam("pageSize") != null) {
+        int pageNumber = getParamAsClassOrElse(ctx, "page", Integer.class, 1);
+        int pageSize = getParamAsClassOrElse(ctx, "pageSize", Integer.class, 10);
+        PageOptions pageOptions = new PageOptions(pageNumber, pageSize);
         
-    };
+        Page<Recipe> page = recipeService.getRecipes(term, pageOptions);
+        
+        ctx.status(200);
+        ctx.json(page);
+    } else {
+        List<Recipe> recipes = recipeService.searchRecipes(term);
+        
+        if (recipes == null || recipes.isEmpty()) {
+            ctx.status(404);
+            ctx.result("No recipes found");
+        } else {
+            ctx.status(200);
+            ctx.json(recipes);
+        }
+    }
+};
 
     /**
      * TODO: Handler for fetching a recipe by its ID.
@@ -50,7 +80,14 @@ public class RecipeController {
      * If unsuccessful, responds with a 404 status code and a result of "Recipe not found".
      */
     public Handler fetchRecipeById = ctx -> {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Recipe recipe = recipeService.getRecipeById(id);
         
+        if (recipe != null) {
+            ctx.status(200).json(recipe);
+        } else {
+            ctx.status(404).result("Recipe not found");
+        }
     };
 
     /**
@@ -60,7 +97,14 @@ public class RecipeController {
      * If unauthorized, responds with a 401 Unauthorized status.
      */
     public Handler createRecipe = ctx -> {
-       
+       String token = ctx.header("Authorization");
+    if (authService.authenticate(token)) {
+        Recipe recipe = ctx.bodyAsClass(Recipe.class);
+        recipeService.createRecipe(recipe);
+        ctx.status(201);
+    } else {
+        ctx.status(401);
+    }
     };
 
     /**
@@ -72,7 +116,12 @@ public class RecipeController {
      */
     public Handler deleteRecipe = ctx -> {
         int id = Integer.parseInt(ctx.pathParam("id"));
-        recipeService.deleteRecipe(id);
+        if (recipeService.getRecipeById(id) != null) {
+            recipeService.deleteRecipe(id);
+            ctx.status(200).result("Recipe deleted successfully.");
+        } else {
+            ctx.status(404).result("Recipe not found.");
+        }
     };
 
     /**
@@ -83,7 +132,16 @@ public class RecipeController {
      * If unsuccessfuly, responds with a 404 status code and a result of "Recipe not found."
      */
     public Handler updateRecipe = ctx -> {
-
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Recipe recipe = ctx.bodyAsClass(Recipe.class);
+        recipe.setId(id);
+        
+        if (recipeService.getRecipeById(id) != null) {
+            Recipe updatedRecipe = recipeService.updateRecipe(recipe);
+            ctx.status(200).json(updatedRecipe);
+        } else {
+            ctx.status(404).result("Recipe not found.");
+        }
     };
 
     /**

@@ -1,5 +1,6 @@
 package com.revature.dao;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -9,7 +10,9 @@ import com.revature.util.ConnectionUtil;
 import com.revature.util.Page;
 import com.revature.util.PageOptions;
 import com.revature.model.Ingredient;
-
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 
 
 
@@ -33,7 +36,7 @@ public class IngredientDAO {
      * @param connectionUtil the utility used to connect to the database
      */
     public IngredientDAO(ConnectionUtil connectionUtil) {
-        
+        this.connectionUtil = connectionUtil;
     }
 
     /**
@@ -43,6 +46,18 @@ public class IngredientDAO {
      * @return the Ingredient object with the specified id.
      */
     public Ingredient getIngredientById(int id) {
+        String sql = "SELECT * FROM ingredient WHERE id = ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapSingleRow(rs);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 
@@ -53,6 +68,19 @@ public class IngredientDAO {
      * @return the unique identifier of the created Ingredient.
      */
     public int createIngredient(Ingredient ingredient) {
+        String sql = "INSERT INTO ingredient (name) VALUES (?)";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, ingredient.getName());
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return 0;
     }
 
@@ -62,7 +90,14 @@ public class IngredientDAO {
      * @param ingredient the Ingredient object to be deleted.
      */
     public void deleteIngredient(Ingredient ingredient) {
-        
+        String sql = "DELETE FROM ingredient WHERE id = ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, ingredient.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -71,7 +106,15 @@ public class IngredientDAO {
      * @param ingredient the Ingredient object containing updated information.
      */
     public void updateIngredient(Ingredient ingredient) {
-        
+        String sql = "UPDATE ingredient SET name = ? WHERE id = ?";
+        try (Connection conn = connectionUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, ingredient.getName());
+            ps.setInt(2, ingredient.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -80,7 +123,20 @@ public class IngredientDAO {
      * @return a list of all Ingredient objects.
      */
     public List<Ingredient> getAllIngredients() {
-        return null;
+      String sql = "SELECT * FROM ingredient ORDER BY id"; 
+    
+    List<Ingredient> ingredients = new ArrayList<>();
+    try (Connection conn = connectionUtil.getConnection();
+         Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(sql)) {
+        
+        while (rs.next()) {
+            ingredients.add(mapSingleRow(rs));
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return ingredients;
     }
 
     /**
@@ -90,8 +146,38 @@ public class IngredientDAO {
      * @return a Page of Ingredient objects containing the retrieved ingredients.
      */
     public Page<Ingredient> getAllIngredients(PageOptions pageOptions) {
-        return null;
+        String sql = "SELECT * FROM ingredient ORDER BY id LIMIT ? OFFSET ?"; 
+    
+    List<Ingredient> ingredients = new ArrayList<>();
+    int totalElements = getIngredientCount(); 
+    int pageSize = pageOptions.getPageSize();
+    int totalPages = (int) Math.ceil((double) totalElements / pageSize);
+    
+    try (Connection conn = connectionUtil.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        
+        pstmt.setInt(1, pageOptions.getPageSize());
+        pstmt.setInt(2, pageOptions.getOffset());
+        
+        try (ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                ingredients.add(mapSingleRow(rs));
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+    
+    return new Page<Ingredient>(
+        pageOptions.getPageNumber(), 
+        pageSize, 
+        totalPages, 
+        totalElements, 
+        ingredients
+    );
+    }
+
+    
 
     /**
      * TODO: Searches for Ingredient records by a search term in the name.
@@ -100,7 +186,17 @@ public class IngredientDAO {
      * @return a list of Ingredient objects that match the search term.
      */
     public List<Ingredient> searchIngredients(String term) {
-        return null;
+        String sql = "SELECT * FROM ingredient WHERE name LIKE ? ORDER BY id";
+    try (Connection conn = connectionUtil.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+        ps.setString(1, "%" + term + "%");
+        try (ResultSet rs = ps.executeQuery()) {
+            return mapRows(rs);
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return new ArrayList<>();
     }
 
     /**
@@ -110,10 +206,61 @@ public class IngredientDAO {
      * @param pageOptions options for pagination and sorting.
      * @return a Page of Ingredient objects containing the retrieved ingredients.
      */
-    public Page<Ingredient> searchIngredients(String term, PageOptions pageOptions) {
-        return null;
-    }
+    // Inside com.revature.dao.IngredientDAO.java
 
+public Page<Ingredient> searchIngredients(String term, PageOptions pageOptions) {
+    // FIX: Ensure 'ORDER BY' is placed correctly after 'LIKE ?' and before 'LIMIT'
+    String sql = "SELECT * FROM ingredient WHERE name LIKE ? ORDER BY " + 
+                 pageOptions.getSortBy() + " " + pageOptions.getSortDirection() + 
+                 " LIMIT ? OFFSET ?";
+    
+    List<Ingredient> ingredients = new ArrayList<>();
+    int totalElements = getSearchCount(term); 
+    int pageSize = pageOptions.getPageSize();
+    
+    // Correct totalPages calculation
+    int totalPages = (pageSize > 0) ? (int) Math.ceil((double) totalElements / pageSize) : 0;
+    
+    try (Connection conn = connectionUtil.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+        
+        ps.setString(1, "%" + term + "%");
+        ps.setInt(2, pageSize);
+        ps.setInt(3, pageOptions.getOffset());
+        
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                ingredients.add(mapSingleRow(rs));
+            }
+        }
+    } catch (SQLException e) {
+        // Log the error to see if it's a syntax issue (e.g., "ORDER BYid")
+        e.printStackTrace(); 
+    }
+    
+    return new Page<Ingredient>(
+        pageOptions.getPageNumber(),
+        pageSize,
+        totalPages,
+        totalElements,
+        ingredients
+    );
+}
+private int getSearchCount(String term) {
+    String sql = "SELECT COUNT(*) FROM ingredient WHERE name LIKE ?";
+    try (Connection conn = connectionUtil.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+        ps.setString(1, "%" + term + "%");
+        try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+    return 0;
+}
     // below are helper methods for your convenience
 
     /**
@@ -141,6 +288,19 @@ public class IngredientDAO {
         }
         return ingredients;
     }
+private int getIngredientCount() {
+        String sql = "SELECT COUNT(*) FROM ingredient";
+        try (Connection conn = connectionUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
 
     /**
      * Paginates the results of a ResultSet into a Page of Ingredient objects.
@@ -152,10 +312,19 @@ public class IngredientDAO {
      */
     private Page<Ingredient> pageResults(ResultSet resultSet, PageOptions pageOptions) throws SQLException {
         List<Ingredient> ingredients = mapRows(resultSet);
-        int offset = (pageOptions.getPageNumber() - 1) * pageOptions.getPageSize();
-        int limit = offset + pageOptions.getPageSize();
-        List<Ingredient> subList = ingredients.subList(offset, limit);
-        return new Page<>(pageOptions.getPageNumber(), pageOptions.getPageSize(),
-                (int) Math.ceil(ingredients.size() / ((float) pageOptions.getPageSize())), ingredients.size(), subList);
+        
+        int totalElements = getIngredientCount(); 
+        
+        int pageSize = pageOptions.getPageSize();
+        int totalPages = (int) Math.ceil((double) totalElements / pageSize);
+
+        return new Page<Ingredient>(
+            pageOptions.getPageNumber(), 
+            pageSize, 
+            totalPages, 
+            totalElements, 
+            ingredients
+        );
     }
+    
 }
